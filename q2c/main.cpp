@@ -1,4 +1,4 @@
-//This program is free software: you can redistribute it and/or modify
+﻿//This program is free software: you can redistribute it and/or modify
 //it under the terms of the GNU General Public License as published by
 //the Free Software Foundation, either version 3 of the License, or
 //(at your option) any later version.
@@ -27,7 +27,8 @@ bool DetectInput()
     bool found = false;
     while (x < files.count())
     {
-        QString filename = files.at(x);
+        const QString& filename = files.at(x);
+        // 转换全小写
         filename.toLower();
         if (filename.endsWith(".pro"))
         {
@@ -46,21 +47,21 @@ bool DetectInput()
     return found;
 }
 
-int Parser_Input(TerminalParser *parser, QStringList params)
+int Parser_Input(TerminalParser *parser, const QStringList& params)
 {
     Q_UNUSED(parser);
     Configuration::InputFile = params.at(0);
     return 0;
 }
 
-int Parser_Output(TerminalParser *parser, QStringList params)
+int Parser_Output(TerminalParser *parser, const QStringList& params)
 {
     Q_UNUSED(parser);
     Configuration::OutputFile = params.at(0);
     return 0;
 }
 
-int Parser_Qt4(TerminalParser *parser, QStringList params)
+int Parser_Qt4(TerminalParser *parser, const QStringList& params)
 {
     Q_UNUSED(params);
     Q_UNUSED(parser);
@@ -68,7 +69,7 @@ int Parser_Qt4(TerminalParser *parser, QStringList params)
     return 0;
 }
 
-int Parser_Qt5(TerminalParser *parser, QStringList params)
+int Parser_Qt5(TerminalParser *parser, const QStringList& params)
 {
     Q_UNUSED(params);
     Q_UNUSED(parser);
@@ -76,7 +77,7 @@ int Parser_Qt5(TerminalParser *parser, QStringList params)
     return 0;
 }
 
-int Parser_Force(TerminalParser *parser, QStringList params)
+int Parser_Force(TerminalParser *parser, const QStringList& params)
 {
     Q_UNUSED(params);
     Q_UNUSED(parser);
@@ -84,7 +85,7 @@ int Parser_Force(TerminalParser *parser, QStringList params)
     return 0;
 }
 
-int Parser_Verbosity(TerminalParser *parser, QStringList params)
+int Parser_Verbosity(TerminalParser *parser, const QStringList& params)
 {
     Q_UNUSED(params);
     Q_UNUSED(parser);
@@ -103,7 +104,7 @@ int main(int argc, char *argv[])
         args.append(QString(argv[c]));
         c++;
     }
-    TerminalParser *tp = new TerminalParser();
+    auto *tp = new TerminalParser();
     tp->Register('v', "verbose", "Increases verbosity", 0, (TP_Callback)Parser_Verbosity);
     tp->Register('o', "out", "Specify output file", 1, (TP_Callback)Parser_Output);
     tp->Register('i', "in", "Specify input file", 1, (TP_Callback)Parser_Input);
@@ -140,26 +141,27 @@ int main(int argc, char *argv[])
         if (Configuration::q2c)
         {
             Configuration::OutputFile = "CMakeLists.txt";
-        } else
+        }
+        else
         {
             Configuration::OutputFile += ".pro";
         }
         Logs::DebugLog("Resolved output name to " + Configuration::OutputFile);
     }
     // Load the project file
-    QFile *file = new QFile(Configuration::InputFile);
+    auto *file = new QFile(Configuration::InputFile);
     if (!file->open(QIODevice::ReadOnly))
     {
-        Logs::ErrorLog("Unable to read: " + Configuration::InputFile);
+        Logs::ErrorLog("Unable to read： " + Configuration::InputFile);
         delete file;
         return 4;
     }
     QString source = QString(file->readAll());
     delete file;
-    Project *input = new Project();
+    auto *input = new Project();
     if (!input->Load(source))
     {
-        Logs::ErrorLog("Unable to parse: " + Configuration::InputFile);
+        Logs::ErrorLog("无法解析： " + Configuration::InputFile);
         return 5;
     }
     file = new QFile(Configuration::OutputFile);
@@ -178,7 +180,8 @@ int main(int argc, char *argv[])
     if (Configuration::q2c)
     {
         file->write(input->ToCmake().toUtf8());
-    } else
+    }
+    else
     {
         file->write(input->ToQmake().toUtf8());
     }

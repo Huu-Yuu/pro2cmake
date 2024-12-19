@@ -53,7 +53,7 @@ class TerminalParser
         void Register(char ch, QString string, QString help, int parameters_required, TP_Callback callb);
         QList<TerminalItem> GetItems();
         TerminalItem *GetItem(char name);
-        TerminalItem *GetItem(QString name);
+        TerminalItem *GetItem(const QString& name);
 
     private:
         QList<TerminalItem> _items;

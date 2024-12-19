@@ -12,6 +12,7 @@
 
 #include <QCoreApplication>
 #include <iostream>
+#include <utility>
 #include "generic.h"
 #include "terminalparser.h"
 
@@ -86,18 +87,18 @@ bool TerminalParser::Parse(int argc, char **argv)
     int x = 0;
     int expected_parameters = 0;
     QStringList parameter_buffer;
-    TerminalItem *item = NULL;
+    TerminalItem *item = nullptr;
     while (x < argc)
     {
         QString parameter = QString(argv[x++]);
         if (expected_parameters > 0)
         {
-            // the last argument we processed has some parameters, so we are now processing them into a buffer
+            // 处理的最后一个参数有一些参数，现在正在将它们处理到缓冲区中
             parameter_buffer << parameter;
             expected_parameters--;
             if (expected_parameters == 0)
             {
-                // execute
+                // 执行
                 if (item->Exec(this, parameter_buffer) == TP_RESULT_SHUT)
                 {
                     delete item;
@@ -109,24 +110,24 @@ bool TerminalParser::Parse(int argc, char **argv)
         }
         if (parameter.length() < 2)
         {
-            std::cerr << "ERROR: unrecognized parameter: " << parameter.toStdString() << std::endl;
+            std::cerr << "错误: 无法识别的参数: " << parameter.toStdString() << std::endl;
             return false;
         }
         if (parameter.startsWith("--"))
         {
-            // It's a word parameter
+            // 获取参数
             delete item;
             item = this->GetItem(parameter.mid(2));
-            if (item == NULL)
+            if (item == nullptr)
             {
-                std::cerr << "ERROR: unrecognized parameter: " << parameter.toStdString() << std::endl;
+                std::cerr << "错误: 无法识别的参数: " << parameter.toStdString() << std::endl;
                 delete item;
                 return false;
             }
             expected_parameters = item->GetParameters();
             if (expected_parameters)
                 continue;
-            // let's process this item
+            // 处理参数
             if (item->Exec(this, parameter_buffer) == TP_RESULT_SHUT)
             {
                 delete item;
@@ -144,14 +145,14 @@ bool TerminalParser::Parse(int argc, char **argv)
                 item = this->GetItem(sx);
                 if (item == NULL)
                 {
-                    std::cerr << "ERROR: unrecognized parameter: -" << sx << std::endl;
+                    std::cerr << "错误: 无法识别的参数: -" << sx << std::endl;
                     delete item;
                     return false;
                 }
                 expected_parameters = item->GetParameters();
                 if (expected_parameters && (symbol_px+1) < parameter.size())
                 {
-                    std::cerr << "ERROR: not enough parameters provided for -" << sx << std::endl;
+                    std::cerr << "错误: 提供的参数不足 -" << sx << std::endl;
                     delete item;
                     return false;
                 }
@@ -177,17 +178,17 @@ bool TerminalParser::Parse(int argc, char **argv)
 
 int TerminalItem::Exec(TerminalParser *parser, QStringList parameters)
 {
-    return this->callb(parser, parameters);
+    return this->callb(parser, std::move(parameters));
 }
 
-TerminalItem *TerminalParser::GetItem(QString name)
+TerminalItem *TerminalParser::GetItem(const QString& name)
 {
-    foreach(TerminalItem x, this->_items)
+    for(auto x : _items)
     {
         if (x.GetLong() == name)
             return new TerminalItem(x);
     }
-    return NULL;
+    return nullptr;
 }
 
 void TerminalParser::Register(char ch, QString string, QString help, int parameters_required, TP_Callback callb)

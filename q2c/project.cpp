@@ -1,4 +1,4 @@
-//This program is free software: you can redistribute it and/or modify
+﻿//This program is free software: you can redistribute it and/or modify
 //it under the terms of the GNU General Public License as published by
 //the Free Software Foundation, either version 3 of the License, or
 //(at your option) any later version.
@@ -11,6 +11,7 @@
 #include "project.h"
 #include "generic.h"
 #include <QStringList>
+#include <utility>
 
 Project::Project()
 {
@@ -23,7 +24,8 @@ Project::Project()
     if (Configuration::only_qt4)
     {
         this->Version = QtVersion_Qt4;
-    } else if (Configuration::only_qt5)
+    }
+    else if (Configuration::only_qt5)
     {
         this->Version = QtVersion_Qt5;
     }
@@ -31,50 +33,51 @@ Project::Project()
     this->Modules << "core";
 }
 
-QString generateCMakeOptions(QList<CMakeOption> *options)
+QString generateCMakeOptions(QList<CMakeOption> &options)
 {
     QString result;
-    foreach (CMakeOption option, *options)
+    for (const auto& option : options)
     {
         result += "option(" + option.Name + " \"" + option.Description + "\" " + option.Default + ")\n";
     }
     return result;
 }
 
-bool Project::Load(QString text)
+bool Project::Load(const QString& text)
 {
     this->ParseQmake(text);
     return true;
 }
 
-bool Project::ParseQmake(QString text)
+bool Project::ParseQmake(const QString& text)
 {
     ParserState state = ParserState_LookingForKeyword;
-    // Process the file line by line
+    // 逐行处理文件
     QStringList lines = text.split("\n");
     QString data_buffer;
     QString current_word;
     QString current_line;
-    foreach (QString line, lines)
+    for (auto &line : lines)
     {
-        // Trim leading spaces
+        // 处理空格
         while (line.startsWith(" "))
             line = line.mid(1);
-        // If line starts with hash we can ignore it
+        // 忽略#号开头的
         if (line.startsWith("#") || line.isEmpty())
             continue;
-        if (state == ParserState_LookingForKeyword)
+        if (ParserState_LookingForKeyword == state)
         {
-            // we are now looking for a keyword
+            // 寻找关键字
             QString keyword = line;
             if (keyword.contains(" "))
                 keyword = keyword.mid(0, keyword.indexOf(" "));
-            Logs::DebugLog("Possible keyword: " + keyword);
+            Logs::DebugLog("找到关键字: " + keyword);
             if (this->KnownSimpleKeywords.contains(keyword))
             {
                 if (!this->ProcessSimpleKeyword(keyword, line))
                     return false;
-            } else if (this->KnownComplexKeywords.contains(keyword))
+            }
+            else if (this->KnownComplexKeywords.contains(keyword))
             {
                 current_word = keyword;
                 current_line = line;
@@ -82,15 +85,18 @@ bool Project::ParseQmake(QString text)
                 if (line.endsWith("\\"))
                 {
                     state = ParserState_FetchingData;
-                } else
+                }
+                else
                 {
                     this->ProcessComplexKeyword(keyword, current_line, data_buffer);
                 }
-            } else
-            {
-                Logs::DebugLog("Ignoring unknown keyword: " + keyword);
             }
-        } else if (state == ParserState_FetchingData)
+            else
+            {
+                Logs::DebugLog("忽略未知关键字: " + keyword);
+            }
+        }
+        else if (ParserState_FetchingData == state)
         {
             data_buffer += "\n" + line;
             if (!line.endsWith("\\"))
@@ -104,18 +110,18 @@ bool Project::ParseQmake(QString text)
     {
         foreach (QString word, this->RemainingRequiredKeywords)
         {
-            Logs::ErrorLog("Required keyword not found: " + word);
+            Logs::ErrorLog("未找到所需关键字: " + word);
         }
         return false;
     }
     return true;
 }
 
-QString Project::ToQmake()
+QString Project::ToQmake() const
 {
     QString source = "#-----------------------------------------------------------------\n";
-    source += "# Project converted from cmake file using q2c\n";
-    source += "# https://github.com/benapetr/q2c at " + QDateTime::currentDateTime().toString() + "\n";
+    source += "# Project converted from cmake file using pro2cmake\n";
+    source += "# https://github.com/Huu-Yuu/pro2cmake at " + QDateTime::currentDateTime().toString() + "\n";
     source += "#-----------------------------------------------------------------\n";
     source += "TARGET = " + ProjectName;
     return source;
@@ -129,22 +135,22 @@ QString Project::ToCmake()
     }
 
     QString source = "#-----------------------------------------------------------------\n";
-    source += "# Project converted from qmake file using q2c\n";
-    source += "# https://github.com/benapetr/q2c at " + QDateTime::currentDateTime().toString() + "\n";
+    source += "# Project converted from qmake file using pro2cmake\n";
+    source += "# https://github.com/Huu-Yuu/pro2cmake at " + QDateTime::currentDateTime().toString() + "\n";
     source += "#-----------------------------------------------------------------\n";
     source += "cmake_minimum_required (" + this->CMakeMinumumVersion + ")\n";
     source += "project(" + ProjectName + ")\n";
     //! \todo Somewhere here we should generate options for CMake based on Qt version preference
-    source += generateCMakeOptions(&this->CMakeOptions);
+    source += generateCMakeOptions(this->CMakeOptions);
 
-    // Qt libs, if needed
+    // 添加QT库
     source += this->GetCMakeDefaultQtLibs();
 
-    // Sources, headers and so on
+    // 添加头文件和源文件
     if (!this->Sources.isEmpty())
     {
         source += "set(" + this->ProjectName + "_SOURCES";
-        foreach (QString src, this->Sources)
+        for (const auto &src : this->Sources)
         {
             source += " \"" + src + "\"";
         }
@@ -153,10 +159,11 @@ QString Project::ToCmake()
     if (!this->Headers.isEmpty())
     {
         source += "set(" + this->ProjectName + "_HEADERS";
-        foreach (QString src, this->Headers)
+        for (const QString &src : this->Headers) 
         {
             source += " \"" + src + "\"";
         }
+
         source += ")\n";
     }
     source += "add_executable(" + this->ProjectName;
@@ -185,35 +192,37 @@ QString Project::FinishCut(QString text)
     return text;
 }
 
-bool Project::ParseStandardQMakeList(QList<QString> *list, QString line, QString text)
+bool Project::ParseStandardQMakeList(QList<QString> *list, const QString& line, QString text)
 {
     if (!line.contains("="))
     {
-        Logs::ErrorLog("Syntax error: expected '=' or '+=', neither of these 2 found");
+        Logs::ErrorLog("语法错误：预期 '=' 或 '+='， 这两个都没有找到");
         Logs::ErrorLog("Line: " + line);
         return false;
     }
     text = text.mid(text.indexOf("=") + 1);
-    text = text.replace("\n", " ");
-    text = text.replace("\\", " ");
+//    text = text.replace("\n", " ");
+//    text = text.replace("\\", " ");
     if (!line.contains("+="))
     {
-        // Wipe current buffer
+        // 清理当前缓冲区
         list->clear();
-    } else if (line.contains("-="))
+    }
+    else if (line.contains("-="))
     {
         QList<QString> items = text.split(" ", QString::SkipEmptyParts);
-        foreach (QString rm, items)
+        for (const QString &rm : items)
         {
             list->removeAll(rm);
         }
         return true;
     }
-    list->append(text.split(" ", QString::SkipEmptyParts));
+//    list->append(text.split(" ", QString::SkipEmptyParts));
+    list->append(text);
     return true;
 }
 
-bool Project::ProcessSimpleKeyword(QString word, QString line)
+bool Project::ProcessSimpleKeyword(const QString& word, const QString& line)
 {
     if (this->RemainingRequiredKeywords.contains(word))
         this->RemainingRequiredKeywords.removeAll(word);
@@ -228,9 +237,9 @@ bool Project::ProcessSimpleKeyword(QString word, QString line)
         QString target_name = line.mid(line.indexOf("=") + 1);
         while (target_name.startsWith(" "))
             target_name = target_name.mid(1);
-        // Remove quotes
+        // 删除引号
         target_name.replace("\"", "");
-        // Project name should not end with spaces either
+        // 项目名称也不以空格结尾  删除两段空格
         target_name = target_name.trimmed();
         target_name = target_name.replace(" ", "_");
         this->ProjectName = target_name;
@@ -238,7 +247,7 @@ bool Project::ProcessSimpleKeyword(QString word, QString line)
     return true;
 }
 
-bool Project::ProcessComplexKeyword(QString word, QString line, QString data_buffer)
+bool Project::ProcessComplexKeyword(const QString& word, const QString& line, const QString& data_buffer)
 {
     if (this->RemainingRequiredKeywords.contains(word))
         this->RemainingRequiredKeywords.removeAll(word);
@@ -246,7 +255,8 @@ bool Project::ProcessComplexKeyword(QString word, QString line, QString data_buf
     {
         if (!this->ParseStandardQMakeList(&this->Sources, line, data_buffer))
             return false;
-    } else if (word == "HEADERS")
+    }
+    else if (word == "HEADERS")
     {
         if (!this->ParseStandardQMakeList(&this->Headers, line, data_buffer))
             return false;
@@ -303,7 +313,7 @@ QString Project::GetCMakeQt5Libs()
     Qt5ModuleCMakeNames.insert("multimedia", "Qt5Multimedia");
     Qt5ModuleIncludeDir.insert("multimedia", "${Qt5Multimedia_INCLUDE_DIRS}");
 
-    foreach (QString module, this->Modules)
+    for (const auto &module : Modules)
     {
         if (Qt5ModuleCMakeNames.contains(module))
             result += "find_package(" + Qt5ModuleCMakeNames[module] + " REQUIRED)\n";
@@ -336,15 +346,16 @@ QString Project::GetCMakeQtModules()
     if (this->Version == QtVersion_Qt5)
     {
         return modules_string;
-    } else
+    }
+    else
     {
         return "IF (QT5BUILD)\n" + Generic::Indent(modules_string) + "\n" + "ENDIF()\n";
     }
 }
 
-CMakeOption::CMakeOption(QString name, QString description, QString __default)
+CMakeOption::CMakeOption(QString name, QString description, QString _default)
 {
-    this->Name = name;
-    this->Description = description;
-    this->Default = __default;
+    this->Name = std::move(name);
+    this->Description = std::move(description);
+    this->Default = std::move(_default);
 }
